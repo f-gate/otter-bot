@@ -4,11 +4,11 @@
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-
 use teloxide::{prelude::*, update_listeners::webhooks};
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
 use teloxide::error_handlers::IgnoringErrorHandler;
-use teloxide::types::{UserId, Recipient};
+use teloxide::types::{UserId, Recipient, InlineKeyboardMarkup, InlineKeyboardButton, CountryCode};
+use itertools::Itertools;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -56,10 +56,12 @@ async fn main() {
     let bot = Bot::from_env();
 
     let addr = ([127, 0, 0, 1], 8443).into();
-    let url = "https://bacc-80-28-254-88.eu.ngrok.io".parse().unwrap();
+    let url = "https://1c29-89-33-43-65.eu.ngrok.io".parse().unwrap();
     let listener = webhooks::axum(bot.clone(), webhooks::Options::new(addr, url))
         .await
         .expect("Couldn't setup webhook");
+
+        //ensure current user 
 
         Dispatcher::builder(
             bot,
@@ -90,7 +92,7 @@ async fn ask_full_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerR
     match msg.text() {
         Some(text) => {
             bot.send_message(msg.chat.id, format!("Hello {}", text)).await?;
-            bot.send_message(msg.chat.id, format!("And with whom are you chatting with? (@alexanderfive, (the only one that works atm)) ")).await?;
+            bot.send_message(msg.chat.id, format!("And with whom are you chatting with? (@Felixgate, (the only one that works atm)) ")).await?;
 
             dialogue.update(State::WhoWith { full_name: String::from(text) }).await?;
 
@@ -107,21 +109,23 @@ async fn ask_who_with(bot: Bot, dialogue: MyDialogue, full_name: String, msg: Me
         Some(text) => {
             let mut hasher = DefaultHasher::new();
             text.hash(&mut hasher);
-        loop {
             //todo secure usernames.
             if valid_usernames().contains(&hasher.finish()) {
                 // invite new user
                 bot.send_message(msg.chat.id, format!("{} is a valid username", text)).await?;
                 let referee = <Recipient as From<String>>::from(text.to_string());
-                bot.create_chat_invite_link(referee.clone()).await?;
-                dialogue.update(State::Location {full_name, referee}).await?;
-                bot.send_message(msg.chat.id, "I have invited this user to the group, please make sure they join as, for not, your responses will not be saved otherwise.").await?;
+                
+                // CREAET CHAT MAY BE A PROBLEM.
+                let chat_link = bot.create_chat_invite_link(msg.chat.id).await?;
+                println!("{:?}", chat_link);
+                ////
+                //bot.send_message(msg.chat.id, "I have invited this user to the group, please make sure they join as, for not, your responses will not be saved otherwise.").await?;
                 bot.send_message(msg.chat.id, "where are you based").await?;
+                dialogue.update(State::Location {full_name, referee}).await?;
 
-                break
             } else {
                 bot.send_message(msg.chat.id, format!("{} is not a valid username, please try again", text)).await?;
-            }
+                dialogue.update(State::WhoWith {full_name}).await?;
         }
 
         }
@@ -149,6 +153,26 @@ async fn ask_location(bot: Bot, dialogue: MyDialogue, full_name: String, msg: Me
 
 fn valid_usernames() -> Vec<u64> {
     let mut hasher = DefaultHasher::new();
-    "@alexanderfive".hash(&mut hasher);
+    "@Felixgate".hash(&mut hasher);
     vec![hasher.finish()]
+}
+
+/// Creates a keyboard made by buttons in a big column.
+fn make_keyboard() -> InlineKeyboardMarkup {
+    let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
+    let num_variants = std::mem::size_of_val(&CountryCode::AD) / std::mem::size_of::<CountryCode>();
+
+    let _: _ = vec!["GB", "FR", "BG", "GE", "NZ", "AU", "US"]
+    .chunks(3)
+    .map(|countries| {
+        
+        let row = countries
+        .iter()
+        .map(|&version| InlineKeyboardButton::callback(version.to_owned(), version.to_owned()))
+        .collect();
+        keyboard.push(row);
+    
+    }).collect::<Vec<_>>();
+
+    InlineKeyboardMarkup::new(keyboard)
 }
