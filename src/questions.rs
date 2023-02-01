@@ -6,7 +6,8 @@ use teloxide::Bot;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::requests::Requester;
 use teloxide::types::{Recipient, InlineKeyboardMarkup, InlineKeyboardButton, CountryCode, InlineQueryResultArticle, InputMessageContent, InputMessageContentText, Message, InlineQuery};
-use crate::{HandlerResult, MyDialogue, State};
+use teloxide::utils::command::BotCommands;
+use crate::{HandlerResult, MyDialogue, State, OtterCommand};
 
    pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
         bot.send_message(msg.chat.id, "Hello! And with whom do I have the pleasure of interfacing with today?").await?;
@@ -63,7 +64,7 @@ use crate::{HandlerResult, MyDialogue, State};
         Ok(())
     }
     
-    pub async fn ask_location(bot: Bot, dialogue: MyDialogue, full_name: String, msg: Message, q: InlineQuery) -> HandlerResult {
+    pub async fn ask_location(bot: Bot, msg: Message, q: InlineQuery) -> HandlerResult {
         match msg.text() {
             Some(text) => {
                 let choose_location = InlineQueryResultArticle::new(
@@ -106,4 +107,14 @@ use crate::{HandlerResult, MyDialogue, State};
         }).collect::<Vec<_>>();
     
         InlineKeyboardMarkup::new(keyboard)
+    }
+
+
+    pub async fn handle_command(bot: Bot, msg: Message, cmd: OtterCommand) -> HandlerResult {
+        match cmd {
+            OtterCommand::Help => bot.send_message(msg.chat.id, OtterCommand::descriptions().to_string()).await?,
+            OtterCommand::Start => bot.send_message(msg.chat.id, OtterCommand::descriptions().to_string()).await?,
+        };
+
+        Ok(())
     }

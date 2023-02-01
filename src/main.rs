@@ -3,6 +3,8 @@
 mod questions;
 
 use std::fmt::Display;
+use teloxide::filter_command;
+use teloxide::macros::BotCommands;
 use teloxide::types::Recipient;
 use teloxide::{prelude::*, update_listeners::webhooks};
 use teloxide::{dispatching::dialogue::InMemStorage,};
@@ -48,6 +50,16 @@ pub enum State {
     WhatAreYouBuilding {full_name: String, referee: Recipient, location: String, person: PersonType},
 }
 
+
+#[derive(BotCommands)]
+#[command(rename_rule = "lowercase", description = "These commands are supported:")]
+enum OtterCommand {
+    #[command(description = "Display this text")]
+    Help,
+    #[command(description = "Start the questionaire.")]
+    Start,
+}
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
@@ -56,23 +68,29 @@ async fn main() {
     let bot = Bot::from_env();
 
     let addr = ([127, 0, 0, 1], 8443).into();
-    let url = "https://b57e-89-33-43-65.eu.ngrok.io".parse().unwrap();
+    let url = "https://4d6e-89-33-43-65.eu.ngrok.io".parse().unwrap();
     let listener = webhooks::axum(bot.clone(), webhooks::Options::new(addr, url))
         .await
         .expect("Couldn't setup webhook");
 
+    
         //ensure current user 
-
         Dispatcher::builder(
             bot,
             Update::filter_message()
-                .enter_dialogue::<Message, InMemStorage<State>, State>()
-                .branch(dptree::case![State::Start].endpoint(questions::start))
-                .branch(dptree::case![State::ReceiveFullName].endpoint(ask_full_name))
-                .branch(dptree::case![State::WhoWith { full_name }].endpoint(ask_who_with))
-                .branch(dptree::case![State::Location { full_name, referee }].endpoint(ask_location))
-                //.branch(dptree::case![State::TypeOfPersonList { full_name, referee, location }].endpoint(ask_type))
-                //.branch(dptree::case![State::WhatAreYouBuilding { full_name, referee, location, person } ].endpoint(ask_what))
+            .branch(
+                dptree::entry()
+                    .filter_command::<OtterCommand>()
+                    .endpoint(handle_command)
+                
+            )
+            .enter_dialogue::<Message, InMemStorage<State>, State>()
+            .branch(dptree::case![State::Start].endpoint(questions::start))
+            .branch(dptree::case![State::ReceiveFullName].endpoint(ask_full_name))
+            .branch(dptree::case![State::WhoWith { full_name }].endpoint(ask_who_with))
+            .branch(dptree::case![State::Location { full_name, referee }].endpoint(ask_location))
+            //.branch(dptree::case![State::TypeOfPersonList { full_name, referee, location }].endpoint(ask_type))
+            //.branch(dptree::case![State::WhatAreYouBuilding { full_name, referee, location, person } ].endpoint(ask_what))
         )
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
         .enable_ctrlc_handler()
