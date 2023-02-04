@@ -3,29 +3,28 @@
 #![feature(is_some_and)]
 mod questions;
 
+use questions::Questions;
 use std::fmt::Display;
+use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::error_handlers::IgnoringErrorHandler;
 use teloxide::filter_command;
 use teloxide::macros::BotCommands;
 use teloxide::types::Recipient;
 use teloxide::{prelude::*, update_listeners::webhooks};
-use teloxide::{dispatching::dialogue::InMemStorage,};
-use teloxide::error_handlers::IgnoringErrorHandler;
-use questions::Questions;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 
 // todo:
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
-
 #[derive(Clone)]
 pub enum PersonType {
     BusinessDev,
-    Founder, 
+    Founder,
     Builder,
     Investor,
     Marketing,
-    Other
+    Other,
 }
 
 impl Display for PersonType {
@@ -48,15 +47,31 @@ pub enum State {
     Start,
     WrongPermissions,
     ReceiveFullName,
-    WhoWith {full_name: String},
-    Location {full_name: String, referee: Recipient},
-    TypeOfPersonList {full_name: String, referee: Recipient, location: String},
-    WhatAreYouBuilding {full_name: String, referee: Recipient, location: String, person: PersonType},
+    WhoWith {
+        full_name: String,
+    },
+    Location {
+        full_name: String,
+        referee: Recipient,
+    },
+    TypeOfPersonList {
+        full_name: String,
+        referee: Recipient,
+        location: String,
+    },
+    WhatAreYouBuilding {
+        full_name: String,
+        referee: Recipient,
+        location: String,
+        person: PersonType,
+    },
 }
 
-
 #[derive(BotCommands)]
-#[command(rename_rule = "lowercase", description = "These commands are supported:")]
+#[command(
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
+)]
 enum OtterCommand {
     #[command(description = "Display this text")]
     Help,
@@ -77,33 +92,29 @@ async fn main() {
         .await
         .expect("Couldn't setup webhook");
 
-    
-        //ensure current user 
-        Dispatcher::builder(
-            bot,
-            Update::filter_message()
+    //ensure current user
+    Dispatcher::builder(
+        bot,
+        Update::filter_message()
             .branch(
-                dptree::entry()
-                    //.filter_command::<OtterCommand>()
-                    //.endpoint(handle_command)
-                //
+                dptree::entry(), //.filter_command::<OtterCommand>()
+                                 //.endpoint(handle_command)
+                                 //
             )
             .enter_dialogue::<Message, InMemStorage<State>, State>()
             .branch(dptree::case![State::WrongPermissions])
             .branch(dptree::case![State::Start].endpoint(Questions::start))
             .branch(dptree::case![State::ReceiveFullName].endpoint(Questions::ask_full_name))
             .branch(dptree::case![State::WhoWith { full_name }].endpoint(Questions::ask_who_with))
-            .branch(dptree::case![State::Location { full_name, referee }].endpoint(Questions::ask_location))
-            //.branch(dptree::case![State::TypeOfPersonList { full_name, referee, location }].endpoint(ask_type))
-            //.branch(dptree::case![State::WhatAreYouBuilding { full_name, referee, location, person } ].endpoint(ask_what))
-        )
-        .dependencies(dptree::deps![InMemStorage::<State>::new()])
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch_with_listener(listener, IgnoringErrorHandler::new())
-        .await;
+            .branch(
+                dptree::case![State::Location { full_name, referee }]
+                    .endpoint(Questions::ask_location),
+            ), //.branch(dptree::case![State::TypeOfPersonList { full_name, referee, location }].endpoint(ask_type))
+               //.branch(dptree::case![State::WhatAreYouBuilding { full_name, referee, location, person } ].endpoint(ask_what))
+    )
+    .dependencies(dptree::deps![InMemStorage::<State>::new()])
+    .enable_ctrlc_handler()
+    .build()
+    .dispatch_with_listener(listener, IgnoringErrorHandler::new())
+    .await;
 }
-
-
-
-
