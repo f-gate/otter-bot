@@ -1,5 +1,6 @@
 // The version of ngrok ping-pong-bot, which uses a webhook to receive updates
 // from Telegram, instead of long polling.
+#![feature(is_some_and)]
 mod questions;
 
 use std::fmt::Display;
@@ -9,9 +10,11 @@ use teloxide::types::Recipient;
 use teloxide::{prelude::*, update_listeners::webhooks};
 use teloxide::{dispatching::dialogue::InMemStorage,};
 use teloxide::error_handlers::IgnoringErrorHandler;
-use questions::*;
+use questions::Questions;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
+
+// todo:
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 
@@ -43,6 +46,7 @@ impl Display for PersonType {
 pub enum State {
     #[default]
     Start,
+    WrongPermissions,
     ReceiveFullName,
     WhoWith {full_name: String},
     Location {full_name: String, referee: Recipient},
@@ -80,15 +84,16 @@ async fn main() {
             Update::filter_message()
             .branch(
                 dptree::entry()
-                    .filter_command::<OtterCommand>()
-                    .endpoint(handle_command)
-                
+                    //.filter_command::<OtterCommand>()
+                    //.endpoint(handle_command)
+                //
             )
             .enter_dialogue::<Message, InMemStorage<State>, State>()
-            .branch(dptree::case![State::Start].endpoint(questions::start))
-            .branch(dptree::case![State::ReceiveFullName].endpoint(ask_full_name))
-            .branch(dptree::case![State::WhoWith { full_name }].endpoint(ask_who_with))
-            .branch(dptree::case![State::Location { full_name, referee }].endpoint(ask_location))
+            .branch(dptree::case![State::WrongPermissions])
+            .branch(dptree::case![State::Start].endpoint(Questions::start))
+            .branch(dptree::case![State::ReceiveFullName].endpoint(Questions::ask_full_name))
+            .branch(dptree::case![State::WhoWith { full_name }].endpoint(Questions::ask_who_with))
+            .branch(dptree::case![State::Location { full_name, referee }].endpoint(Questions::ask_location))
             //.branch(dptree::case![State::TypeOfPersonList { full_name, referee, location }].endpoint(ask_type))
             //.branch(dptree::case![State::WhatAreYouBuilding { full_name, referee, location, person } ].endpoint(ask_what))
         )
@@ -98,5 +103,7 @@ async fn main() {
         .dispatch_with_listener(listener, IgnoringErrorHandler::new())
         .await;
 }
+
+
 
 
